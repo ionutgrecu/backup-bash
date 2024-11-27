@@ -29,6 +29,13 @@ for path_info in "${paths[@]}"; do
         
         for folder in "$path"/*; do
             folder_name=$(basename "$folder")
+
+            if rclone ls "$RCLONE_REMOTE" | grep -q "$folder_name.7z"; then
+                output+="File already exists in remote: $folder_name.7z"
+                output+="<br>"
+                continue
+            fi
+
             7za a -t7z -mhe=on -mx="$COMPRESSION_LEVEL" -p"$ENCRYPTION_PASSWORD" "/tmp/${folder_name}.7z" "$folder"
             output+=$(rclone move --size-only --ignore-checksum --no-check-certificate -v "/tmp/${folder_name}.7z" "$RCLONE_REMOTE/" 2>&1)
             output+="<br>"
