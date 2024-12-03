@@ -11,7 +11,7 @@ IFS=',' read -ra paths <<< "$BACKUP_PATHS"
 all_outputs=""
 
 for path_info in "${paths[@]}"; do
-    IFS=':' read -r path BACKUP_TYPE COMPRESSION_LEVEL <<< "$path_info"
+    IFS='|' read -r path DESTINATION BACKUP_TYPE COMPRESSION_LEVEL <<< "$path_info"
 
     if [ ! -d "$path" ]; then
         echo "Path does not exist: $path"
@@ -21,29 +21,29 @@ for path_info in "${paths[@]}"; do
     echo "Backup path: $path"
 
     if [[ "$BACKUP_TYPE" == "0" ]]; then
-        output=$(rclone copy --size-only --ignore-checksum --no-check-certificate -v "$path" "$RCLONE_REMOTE/" 2>&1)
+        output=$(rclone copy --size-only --ignore-checksum --no-check-certificate -v "$path" "$DESTINATION/" 2>&1)
     elif [[ "$BACKUP_TYPE" == "1" ]]; then
-        output=$(rclone sync --size-only --ignore-checksum --no-check-certificate -v "$path" "$RCLONE_REMOTE/" 2>&1)
+        output=$(rclone sync --size-only --ignore-checksum --no-check-certificate -v "$path" "$DESTINATION/" 2>&1)
     elif [[ "$BACKUP_TYPE" == "2" ]]; then
         output=""
         
         for folder in "$path"/*; do
             folder_name=$(basename "$folder")
 
-            if rclone ls "$RCLONE_REMOTE" | grep -q "$folder_name.7z"; then
+            if rclone ls "$DESTINATION" | grep -q "$folder_name.7z"; then
                 output+="File already exists in remote: $folder_name.7z"
                 output+="<br>"
                 continue
             fi
 
             7za a -t7z -mhe=on -mx="$COMPRESSION_LEVEL" -p"$ENCRYPTION_PASSWORD" "/tmp/${folder_name}.7z" "$folder"
-            output+=$(rclone move --size-only --ignore-checksum --no-check-certificate -v "/tmp/${folder_name}.7z" "$RCLONE_REMOTE/" 2>&1)
+            output+=$(rclone move --size-only --ignore-checksum --no-check-certificate -v "/tmp/${folder_name}.7z" "$DESTINATION/" 2>&1)
             output+="<br>"
         done
     elif [[ "$BACKUP_TYPE" == "3" ]]; then
         folder_name="$(basename "$path")_$DATE"
         7za a -t7z -mhe=on -mx="$COMPRESSION_LEVEL" -p"$ENCRYPTION_PASSWORD" "/tmp/$folder_name.7z" "$path"
-        output=$(rclone move --size-only --ignore-checksum --no-check-certificate -v "/tmp/$folder_name.7z" "$RCLONE_REMOTE/" 2>&1)
+        output=$(rclone move --size-only --ignore-checksum --no-check-certificate -v "/tmp/$folder_name.7z" "$DESTINATION/" 2>&1)
     else
         output="Invalid backup type: $BACKUP_TYPE for path: $path"
         continue

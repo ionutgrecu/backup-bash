@@ -9,8 +9,7 @@ This script performs backups of specified directories using `rclone` and `7za` f
 - `jq` installed
 - `curl` installed
 - `.env` file with the following variables:
-    - `BACKUP_PATHS`: Comma-separated list of paths with backup type and compression level (e.g., `/path/to/dir:[BACKUP_TYPE]:[COMPRESSION_LEVEL],/another/path:1:3`)
-    - `RCLONE_REMOTE`: Remote destination configured in `rclone`. Ex.: s3-backup:backup
+    - `BACKUP_PATHS`: Comma-separated list of paths and destinations with backup type and compression level (e.g., `/path/to/source|/path/to/dest|[BACKUP_TYPE]|[COMPRESSION_LEVEL],/another/path|/another/dest|1|3`)
     - `ENCRYPTION_PASSWORD`: Password for 7-Zip encryption
     - `ADMIN_EMAIL`: Email address to send the backup report
     - `BREVO_API_KEY`: API key for Brevo
@@ -42,8 +41,8 @@ The `COMPRESSION_LEVEL = 0` is equivalent to just encrypt the destionation files
 
 1. Clone the repository:
      ```sh
-     git clone /home/ionut/Documents/Proiecte/backup-bash.git
-     cd backup-bash
+     git clone https://github.com/ionutgrecu/backup-bash.git
+     cd backup-bash.git
      ```
 
 2. Create and configure the `.env` file:
@@ -62,7 +61,6 @@ The `COMPRESSION_LEVEL = 0` is equivalent to just encrypt the destionation files
 ```sh
 ADMIN_EMAIL=admin@domain.ltd
 ENCRYPTION_PASSWORD=Yah3achee1ohthae7uiGei5yai1eip8O....
-BACKUP_PATHS="/root/backup:1:0,/var/www/html/storage/app:0:0,/var/www/html/config:3:7"
-RCLONE_REMOTE="aws_bkp:backup"
+BACKUP_PATHS="/root/backup|s3:/backup|1|0,/var/www/html/storage/app|s3:/app|0|0,/var/www/html/config|s3:/config|3|7"
 BREVO_API_KEY= ...
 ```
