@@ -13,21 +13,19 @@ all_outputs=""
 for path_info in "${paths[@]}"; do
     IFS='|' read -r path DESTINATION BACKUP_TYPE COMPRESSION_LEVEL <<< "$path_info"
 
-    if [ ! -d "$path" ]; then
-        echo "Path does not exist: $path"
-        continue
-    fi
-
-    echo "Backup path: $path"
+    echo "Backup path: $path to $DESTINATION"
 
     if [[ "$BACKUP_TYPE" == "0" ]]; then
+        echo "Backup type: 0 - Copy files to the remote destination"
         output=$(rclone copy --size-only --ignore-checksum --no-check-certificate -v "$path" "$DESTINATION/" 2>&1)
     elif [[ "$BACKUP_TYPE" == "1" ]]; then
+        echo "Backup type: 1 - Sync files to the remote destination"
         output=$(rclone sync --size-only --ignore-checksum --no-check-certificate -v "$path" "$DESTINATION/" 2>&1)
     elif [[ "$BACKUP_TYPE" == "2" ]]; then
+        echo "Backup type: 2 - Encrypt and compress each subfolder to the remote destination"
         output=""
-        
-        for folder in "$path"/*; do
+
+        for folder in $(rclone lsf "$path" --dirs-only); do
             folder_name=$(basename "$folder")
 
             if rclone ls "$DESTINATION" | grep -q "$folder_name.7z"; then
@@ -36,14 +34,19 @@ for path_info in "${paths[@]}"; do
                 continue
             fi
 
-            7za a -t7z -mhe=on -mx="$COMPRESSION_LEVEL" -p"$ENCRYPTION_PASSWORD" "/tmp/${folder_name}.7z" "$folder"
-            output+=$(rclone move --size-only --ignore-checksum --no-check-certificate -v "/tmp/${folder_name}.7z" "$DESTINATION/" 2>&1)
+            folder=$(echo "$folder" | sed 's:/*$::')
+
+            rclone copy --size-only --ignore-checksum --no-check-certificate -v "$path/$folder" "$TMP_PATH/$folder"
+            7za a -t7z -mhe=on -mx="$COMPRESSION_LEVEL" -p"$ENCRYPTION_PASSWORD" "$TMP_PATH/${folder_name}.7z" "$TMP_PATH/$folder"
+            rm -rf "$TMP_PATH/$folder"
+            output+=$(rclone move --size-only --ignore-checksum --no-check-certificate -v "$TMP_PATH/${folder_name}.7z" "$DESTINATION/" 2>&1)
             output+="<br>"
         done
     elif [[ "$BACKUP_TYPE" == "3" ]]; then
+        echo "Backup type: 3 - Encrypt and compress the entire folder to the remote destination"
         folder_name="$(basename "$path")_$DATE"
-        7za a -t7z -mhe=on -mx="$COMPRESSION_LEVEL" -p"$ENCRYPTION_PASSWORD" "/tmp/$folder_name.7z" "$path"
-        output=$(rclone move --size-only --ignore-checksum --no-check-certificate -v "/tmp/$folder_name.7z" "$DESTINATION/" 2>&1)
+        7za a -t7z -mhe=on -mx="$COMPRESSION_LEVEL" -p"$ENCRYPTION_PASSWORD" "$TMP_PATH/$folder_name.7z" "$path"
+        output=$(rclone move --size-only --ignore-checksum --no-check-certificate -v "$TMP_PATH/$folder_name.7z" "$DESTINATION/" 2>&1)
     else
         output="Invalid backup type: $BACKUP_TYPE for path: $path"
         continue
@@ -59,7 +62,7 @@ current_date=$(date +"%Y-%m-%d")
 
 json_payload=$(jq -n \
     --arg subject "Backup $HOSTNAME - $current_date" \
-    --arg email "server@$HOSTNAME" \
+    --arg email "$FROM_EMAIL" \
     --arg to_email1 "$ADMIN_EMAIL" \
     --arg htmlContent "<p>Backup Report for $HOSTNAME on $current_date</p><p><strong>Source:</strong> $source_dir</p><p><strong>Destination:</strong> $destination_dir</p><p><strong>Details:</strong><br>$all_outputs" \
     '{

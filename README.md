@@ -60,6 +60,7 @@ The `COMPRESSION_LEVEL = 0` is equivalent to just encrypt the destionation files
 
 ```sh
 ADMIN_EMAIL=admin@domain.ltd
+FROM_EMAIL=admin@domain.ltd
 ENCRYPTION_PASSWORD=Yah3achee1ohthae7uiGei5yai1eip8O....
 BACKUP_PATHS="/root/backup|s3:/backup|1|0,/var/www/html/storage/app|s3:/app|0|0,/var/www/html/config|s3:/config|3|7"
 BREVO_API_KEY= ...
