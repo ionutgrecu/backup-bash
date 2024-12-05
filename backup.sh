@@ -17,13 +17,18 @@ for path_info in "${paths[@]}"; do
 
     if [[ "$BACKUP_TYPE" == "0" ]]; then
         echo "Backup type: 0 - Copy files to the remote destination"
-        output=$(rclone copy --transfers $UPLOAD_THREADS --size-only --ignore-checksum --no-check-certificate --progress "$path" "$DESTINATION/" 2>&1 | tee /dev/tty)
+        output=$(rclone copy --transfers $UPLOAD_THREADS --size-only --ignore-checksum --no-check-certificate --progress --stats-unit bytes "$path" "$DESTINATION/" 2>&1 | tee /dev/tty)
     elif [[ "$BACKUP_TYPE" == "1" ]]; then
         echo "Backup type: 1 - Sync files to the remote destination"
-        output=$(rclone sync --transfers $UPLOAD_THREADS --size-only --ignore-checksum --no-check-certificate --progress "$path" "$DESTINATION/" 2>&1 | tee /dev/tty)
+        output=$(rclone sync --transfers $UPLOAD_THREADS --size-only --ignore-checksum --no-check-certificate --progress --stats-unit bytes "$path" "$DESTINATION/" 2>&1 | tee /dev/tty)
     elif [[ "$BACKUP_TYPE" == "2" ]]; then
         echo "Backup type: 2 - Move files to the remote destination"
-        output=$(rclone move --transfers $UPLOAD_THREADS --size-only --ignore-checksum --no-check-certificate --progress "$path" "$DESTINATION/" 2>&1 | tee /dev/tty)
+        output=$(rclone move --transfers $UPLOAD_THREADS --size-only --ignore-checksum --no-check-certificate --progress --stats-unit bytes "$path" "$DESTINATION/" 2>&1 | tee /dev/tty)
+        
+        if [[ -n "$MOVE_DELETE_FILES_THRESHOLD_DAYS" && "$MOVE_DELETE_FILES_THRESHOLD_DAYS" -gt 0 ]]; then
+            echo "Deleting files older than $MOVE_DELETE_FILES_THRESHOLD_DAYS days from $DESTINATION"
+            output+=$(rclone delete --min-age "$MOVE_DELETE_FILES_THRESHOLD_DAYS"d "$DESTINATION/" 2>&1 | tee /dev/)
+        fi
     elif [[ "$BACKUP_TYPE" == "3" ]]; then
         echo "Backup type: 3 - Encrypt and compress each subfolder to the remote destination"
         output=""
@@ -39,17 +44,17 @@ for path_info in "${paths[@]}"; do
 
             folder=$(echo "$folder" | sed 's:/*$::')
 
-            rclone copy --transfers $UPLOAD_THREADS --size-only --ignore-checksum --no-check-certificate --progress "$path/$folder" "$TMP_PATH/$folder"
+            rclone copy --transfers $UPLOAD_THREADS --size-only --ignore-checksum --no-check-certificate --progress --stats-unit bytes "$path/$folder" "$TMP_PATH/$folder"
             7za a -t7z -mhe=on -mx="$COMPRESSION_LEVEL" -p"$ENCRYPTION_PASSWORD" "$TMP_PATH/${folder_name}.7z" "$TMP_PATH/$folder"
             rm -rf "$TMP_PATH/$folder"
-            output+=$(rclone move --transfers $UPLOAD_THREADS --size-only --ignore-checksum --no-check-certificate --progress "$TMP_PATH/${folder_name}.7z" "$DESTINATION/" 2>&1 | tee /dev/tty)
+            output+=$(rclone move --transfers $UPLOAD_THREADS --size-only --ignore-checksum --no-check-certificate --progress --stats-unit bytes "$TMP_PATH/${folder_name}.7z" "$DESTINATION/" 2>&1 | tee /dev/tty)
             output+="<br>"
         done
     elif [[ "$BACKUP_TYPE" == "4" ]]; then
         echo "Backup type: 4 - Encrypt and compress the entire folder to the remote destination"
         folder_name="$(basename "$path")_$DATE"
         7za a -t7z -mhe=on -mx="$COMPRESSION_LEVEL" -p"$ENCRYPTION_PASSWORD" "$TMP_PATH/$folder_name.7z" "$path"
-        output=$(rclone move --transfers $UPLOAD_THREADS --size-only --ignore-checksum --no-check-certificate --progress "$TMP_PATH/$folder_name.7z" "$DESTINATION/" 2>&1 | tee /dev/tty)
+        output=$(rclone move --transfers $UPLOAD_THREADS --size-only --ignore-checksum --no-check-certificate --progress --stats-unit bytes "$TMP_PATH/$folder_name.7z" "$DESTINATION/" 2>&1 | tee /dev/tty)
     else
         output="Invalid backup type: $BACKUP_TYPE for path: $path"
         continue

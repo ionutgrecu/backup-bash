@@ -13,6 +13,9 @@ This script performs backups of specified directories using `rclone` and `7za` f
     - `ENCRYPTION_PASSWORD`: Password for 7-Zip encryption
     - `ADMIN_EMAIL`: Email address to send the backup report
     - `BREVO_API_KEY`: API key for Brevo
+    - `TMP_PATH`: Temporary path for 7-Zip
+    - `UPLOAD_THREADS`: Number of threads to use for uploading files
+    - `MOVE_DELETE_FILES_THRESHOLD_DAYS`: Number of days to keep files before deleting them
 
 Config `rclone` drives with the provider you want.
 
@@ -65,4 +68,7 @@ FROM_EMAIL=admin@domain.ltd
 ENCRYPTION_PASSWORD=Yah3achee1ohthae7uiGei5yai1eip8O....
 BACKUP_PATHS="/root/backup|s3:/backup|1|0,/var/www/html/storage/app|s3:/app|0|0,/var/www/html/config|s3:/config|4|7"
 BREVO_API_KEY= ...
+TMP_PATH=/tmp
+UPLOAD_THREADS=3
+MOVE_DELETE_FILES_THRESHOLD_DAYS=5
 ```
