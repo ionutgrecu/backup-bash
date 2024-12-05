@@ -14,26 +14,27 @@ This script performs backups of specified directories using `rclone` and `7za` f
     - `ADMIN_EMAIL`: Email address to send the backup report
     - `BREVO_API_KEY`: API key for Brevo
 
-Config an `rclone` drive with the provider you want.
+Config `rclone` drives with the provider you want.
 
 ## Backup Types
 
 - `0`: Copy files to the remote destination. Extra files from remote destionation won't get deleted. It's useful to protect against accidental deletion of files.
 - `1`: Sync files to the remote destination. Extra files from remote destination will get deleted.
-- `2`: Encrypt and compress each subfolder to the remote destination
-- `3`: Encrypt and compress the entire folder to the remote destination and append the current date to the backup filename
+- `2`: Move files to the remote destination. It's intended for daily backups, where the files are already archived and encrypted.
+- `3`: Encrypt and compress each subfolder to the remote destination
+- `4`: Encrypt and compress the entire folder to the remote destination and append the current date to the backup filename
 
-Backup types `0` and `1` are intended for very large folders (over 50Gb) with nonconfidential/public content which doesn't deserve to be compressed (images, videos, etc), for which encryption is not necessary.
+Backup types `0`, `1` and `2` are intended for very large folders (over 50Gb) with nonconfidential/public content, or already encrypted content, which doesn't deserve to be compressed (images, videos, etc), for which encryption is not necessary.
 
-Backup types `2` and `3` are intended for confidential/private content which should be encrypted and/or compressed before being uploaded to the remote destination.
+Backup types `3` and `4` are intended for confidential/private content which should be encrypted and/or compressed before being uploaded to the remote destination.
 
 If you have a local backup files already archived which is not encrypted, you can use the `BACKUP_TYPE = 2` with `COMPRESSION_LEVEL = 0` to keep an encrypted copy to a remote location.
 
-To protect against ransomware arrack, which can destroy content to an external drive through rclone, you can setup an s3 bucket with versioning/snapshot enabled or an s3 user limited only to upload and read.
+To protect against ransomware arrack, which can destroy content to an external drive through rclone, you can setup an s3 bucket with versioning/snapshot enabled or an s3 user limited only to upload and read, or a third party server/raspberry pi with rclone and a cron job to backup from source to destination. The third party server should have read only access to the source, and only for the backedup content.
 
 ## Compression Levels
 
-This value is ignored if the backup type is `0` or `1` (copy or sync).
+This value is ignored if the backup type is `0`, `1` or `2` (copy, sync or move).
 This is the compression level `[0 | 1 | 3 | 5 | 7 | 9 ]` for 7-Zip. The higher the number, the better the compression, but it will take longer to compress the files and require more resources.
 The `COMPRESSION_LEVEL = 0` is equivalent to just encrypt the destionation files.
 
@@ -62,6 +63,6 @@ The `COMPRESSION_LEVEL = 0` is equivalent to just encrypt the destionation files
 ADMIN_EMAIL=admin@domain.ltd
 FROM_EMAIL=admin@domain.ltd
 ENCRYPTION_PASSWORD=Yah3achee1ohthae7uiGei5yai1eip8O....
-BACKUP_PATHS="/root/backup|s3:/backup|1|0,/var/www/html/storage/app|s3:/app|0|0,/var/www/html/config|s3:/config|3|7"
+BACKUP_PATHS="/root/backup|s3:/backup|1|0,/var/www/html/storage/app|s3:/app|0|0,/var/www/html/config|s3:/config|4|7"
 BREVO_API_KEY= ...
 ```

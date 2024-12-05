@@ -22,7 +22,10 @@ for path_info in "${paths[@]}"; do
         echo "Backup type: 1 - Sync files to the remote destination"
         output=$(rclone sync --transfers $UPLOAD_THREADS --size-only --ignore-checksum --no-check-certificate --progress "$path" "$DESTINATION/" 2>&1 | tee /dev/tty)
     elif [[ "$BACKUP_TYPE" == "2" ]]; then
-        echo "Backup type: 2 - Encrypt and compress each subfolder to the remote destination"
+        echo "Backup type: 2 - Move files to the remote destination"
+        output=$(rclone move --transfers $UPLOAD_THREADS --size-only --ignore-checksum --no-check-certificate --progress "$path" "$DESTINATION/" 2>&1 | tee /dev/tty)
+    elif [[ "$BACKUP_TYPE" == "3" ]]; then
+        echo "Backup type: 3 - Encrypt and compress each subfolder to the remote destination"
         output=""
 
         for folder in $(rclone lsf "$path" --dirs-only); do
@@ -42,8 +45,8 @@ for path_info in "${paths[@]}"; do
             output+=$(rclone move --transfers $UPLOAD_THREADS --size-only --ignore-checksum --no-check-certificate --progress "$TMP_PATH/${folder_name}.7z" "$DESTINATION/" 2>&1 | tee /dev/tty)
             output+="<br>"
         done
-    elif [[ "$BACKUP_TYPE" == "3" ]]; then
-        echo "Backup type: 3 - Encrypt and compress the entire folder to the remote destination"
+    elif [[ "$BACKUP_TYPE" == "4" ]]; then
+        echo "Backup type: 4 - Encrypt and compress the entire folder to the remote destination"
         folder_name="$(basename "$path")_$DATE"
         7za a -t7z -mhe=on -mx="$COMPRESSION_LEVEL" -p"$ENCRYPTION_PASSWORD" "$TMP_PATH/$folder_name.7z" "$path"
         output=$(rclone move --transfers $UPLOAD_THREADS --size-only --ignore-checksum --no-check-certificate --progress "$TMP_PATH/$folder_name.7z" "$DESTINATION/" 2>&1 | tee /dev/tty)
@@ -72,7 +75,7 @@ json_payload=$(jq -n \
         htmlContent: $htmlContent
     }'
 )
-
+echo $json_payload
 echo $(curl -H "api-key:$BREVO_API_KEY" \
     -X POST \
     -d "$json_payload" \
