@@ -11,7 +11,7 @@ This script performs backups of specified directories using `rclone` and `7za` f
 - `.env` file with the following variables:
     - `BACKUP_PATHS`: Comma-separated list of paths and destinations with backup type and compression level (e.g., `/path/to/source|/path/to/dest|[BACKUP_TYPE]|[COMPRESSION_LEVEL],/another/path|/another/dest|1|3`)
     - `ENCRYPTION_PASSWORD`: Password for 7-Zip encryption
-    - `ADMIN_EMAIL`: Email address to send the backup report
+    - `ADMIN_EMAIL`: Email address to send the backup report. Can be multiple values separated by comma.
     - `BREVO_API_KEY`: API key for Brevo
     - `TMP_PATH`: Temporary path for 7-Zip
     - `UPLOAD_THREADS`: Number of threads to use for uploading files
