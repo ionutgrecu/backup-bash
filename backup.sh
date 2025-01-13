@@ -85,12 +85,12 @@ current_date=$(date +"%Y-%m-%d")
 json_payload=$(jq -n \
     --arg subject "Backup $HOSTNAME - $current_date" \
     --arg email "$FROM_EMAIL" \
-    --arg to_email1 "$ADMIN_EMAIL" \
-    --arg htmlContent "<p>Backup Report for $HOSTNAME on $current_date</p><p><strong>Source:</strong> $source_dir</p><p><strong>Destination:</strong> $destination_dir</p><p><strong>Details:</strong><br>$all_outputs" \
+    --arg to_emails "$ADMIN_EMAIL" \
+    --arg htmlContent "<p>Backup Report for $HOSTNAME on $current_date</p><p>Script generator: backup-bash</p><p><strong>Source:</strong> $source_dir</p><p><strong>Destination:</strong> $destination_dir</p><p><strong>Details:</strong><br>$all_outputs" \
     '{
         subject: $subject,
         sender: { email: $email },
-        to: [{ email: $to_email1 }],
+        to: ($to_emails | split(",") | map({ email: . })),
         htmlContent: $htmlContent
     }'
 )
