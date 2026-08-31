@@ -1,1 +1,7 @@
 .env
+
+/jobs-available/*
+!/jobs-available/sample.conf
+
+/jobs-enabled/*
+!/jobs-enabled/.gitkeep
