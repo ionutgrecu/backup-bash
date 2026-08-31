@@ -31,7 +31,7 @@ for path_info in "${paths[@]}"; do
 
     if [[ "$BACKUP_TYPE" == "0" ]]; then
         echo "Backup type: 0 - Copy files to the remote destination"
-        output=$(rclone copy --transfers $UPLOAD_THREADS --size-only --ignore-checksum --no-check-certificate --progress --stats-unit bytes "$path" "$DESTINATION/" 2>&1 | tee /dev/tty)
+        output=$(rclone copy --transfers $UPLOAD_THREADS --size-only --ignore-existing --ignore-checksum --no-check-certificate --progress --stats-unit bytes "$path" "$DESTINATION/" 2>&1 | tee /dev/tty)
     elif [[ "$BACKUP_TYPE" == "1" ]]; then
         echo "Backup type: 1 - Sync files to the remote destination"
         output=$(rclone sync --transfers $UPLOAD_THREADS --size-only --ignore-checksum --no-check-certificate --progress --stats-unit bytes "$path" "$DESTINATION/" 2>&1 | tee /dev/tty)
