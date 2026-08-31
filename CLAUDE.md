@@ -1,43 +1,97 @@
-# CLAUDE.md
+# Repository Agent Guide
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+This file provides implementation guidance for coding agents working in this repository. `AGENTS.md` is a symlink to this file, so edits apply to both entry points.
 
 ## Overview
 
-Single-file bash backup script (`backup.sh`) that uses `rclone` + `7za` to back up local directories to remote destinations, then sends an HTML email report via the Brevo API. Configured entirely through a `.env` file. Intended to run as a cron job.
+This repository contains a single Bash backup runner, `backup.sh`. It executes independently configured backup jobs with `rclone` and `7za`, aggregates their results into an HTML report, and sends that report through SMTP with `curl`. The script is intended to run manually or from cron.
+
+Global settings live in `.env`. Backup-specific settings live in trusted Bash-style files under `jobs-available`; a job runs only when `jobs-enabled` contains a symlink to it.
 
 ## Running
 
 ```sh
-cp .env.sample .env   # then fill in values
+cp .env.sample .env
+cp jobs-available/sample.conf jobs-available/my-job.conf
+ln -s ../jobs-available/my-job.conf jobs-enabled/my-job.conf
 ./backup.sh
 ```
 
-No build, lint, or test suite. Verify changes by running `backup.sh` against a non-production `.env` (e.g. a local rclone remote and a throwaway path).
+Fill in the SMTP settings in `.env` and configure the job before enabling it.
+
+There is no build, lint, or committed test suite. At minimum, run:
+
+```sh
+bash -n backup.sh
+git diff --check
+```
+
+For behavioral changes, test a copied script in a temporary directory with stubbed `rclone`, `7za`, and `curl`. Never validate against the user's production `.env`, backup sources, or remotes.
 
 ## Architecture
 
-`backup.sh` is the entire codebase. Key flow:
+The main flow in `backup.sh` is:
 
-1. **Lock** (`/tmp/backup-bash.lock`) prevents concurrent runs; released via an EXIT trap.
-2. **`.env` sourced with `set -o allexport`** so all vars become environment vars for child processes (`rclone`, `7za`, `curl`).
-3. **`BACKUP_PATHS` is the config core.** It is a comma-separated list of entries; each entry is pipe-delimited: `source|destination|BACKUP_TYPE|COMPRESSION_LEVEL`. The script iterates this list with `IFS=','` then splits each entry with `IFS='|'`.
-4. **`BACKUP_TYPE` dispatch** (0–4) selects the rclone/7za strategy per entry — see README "Backup Types" for the intent of each. Type 3 iterates subfolders and skips any whose `.7z` already exists on the remote (incremental-by-subfolder). Types 3/4 use `TMP_PATH` as a staging area and encrypt with `ENCRYPTION_PASSWORD`.
-5. **Per-entry stdout is captured** via `tee /dev/tty` (note: type 3 has a known typo — `tee /dev/` instead of `tee /dev/tty` — when editing that branch, preserve or fix deliberately).
-6. **Email report**: outputs from all entries are concatenated as HTML (`<br>`-joined via `sed`), wrapped in a Brevo API JSON payload built with `jq`, and POSTed to `api.brevo.com/v3/smtp/email`. `ADMIN_EMAIL` may be comma-separated and is split into the `to` array.
+1. Change to the repository directory and acquire `/tmp/backup-bash.lock`; the EXIT trap removes the lock and any active staging directory.
+2. Source global `.env` settings with `set -o allexport`.
+3. Discover non-hidden entries in `jobs-enabled` in filename order.
+4. Require each enabled entry to be a symlink resolving to a regular file inside `jobs-available`.
+5. Source each job in function-local variables, validate it, and dispatch backup type 0–4.
+6. Continue after invalid jobs, failed commands, or failed type-3 subfolders while recording failures and preserving a nonzero final status.
+7. Build an escaped HTML report and attempt SMTP delivery even when discovery or backup operations failed.
 
-## Config reference (`.env`)
+Transfer output is captured through temporary files and `tee`, so it remains visible without depending on `/dev/tty`. Quiet rclone listings capture stdout separately from stderr so warnings cannot be interpreted as filenames.
 
-- `BACKUP_PATHS` — comma list of `source|destination|BACKUP_TYPE|COMPRESSION_LEVEL`. Pipe is the inner delimiter; do not use pipes in paths.
-- `BACKUP_TYPE` — 0 copy, 1 sync, 2 move (with optional `MOVE_DELETE_FILES_THRESHOLD_DAYS` cleanup of old files on the remote), 3 encrypt+compress per subfolder, 4 encrypt+compress whole folder with date-stamped filename.
-- `COMPRESSION_LEVEL` — 7-Zip level (0/1/3/5/7/9); ignored for types 0/1/2. `0` means encrypt-only.
-- `ENCRYPTION_PASSWORD` — used only by types 3/4.
-- `UPLOAD_THREADS` — passed to `rclone --transfers`.
-- `ADMIN_EMAIL` — comma-separated recipients.
-- `BREVO_API_KEY`, `FROM_EMAIL`, `TMP_PATH`, `HOSTNAME` (latter is a shell builtin, not in `.env`).
+Types 3 and 4 create isolated `backup-bash.XXXXXX` staging directories beneath `TMP_PATH`. Type 3 lists immediate subfolders, creates one encrypted `.7z` per subfolder, and can skip exact archive names already present at the destination. Type 4 creates one date-stamped archive for the whole source.
+
+## Global configuration (`.env`)
+
+- `ADMIN_EMAIL` — comma-separated SMTP recipients.
+- `FROM_EMAIL` — SMTP envelope sender and message `From` address.
+- `SMTP_URL` — `smtp://host:port` for SMTP/STARTTLS or `smtps://host:port` for implicit TLS.
+- `SMTP_USERNAME`, `SMTP_PASSWORD` — optional authentication; both must be set or both empty.
+- `SMTP_REQUIRE_TLS` — `true` adds curl's `--ssl-reqd`; empty defaults to `true`.
+- `TMP_PATH` — existing writable staging location required by types 3 and 4.
+- `MOVE_DELETE_FILES_THRESHOLD_DAYS` — global type-2 remote retention threshold; empty or `0` disables deletion.
+- `HOSTNAME` — provided by the shell/environment and used in the report subject; it is not in `.env.sample`.
+
+`BACKUP_PATHS`, global `ENCRYPTION_PASSWORD`, global `UPLOAD_THREADS`, `BREVO_API_KEY`, and jq are obsolete and must not be reintroduced without an explicit compatibility requirement.
+
+The real `.env` is ignored and may contain user secrets or legacy values. Do not rewrite, print, or commit it unless the user explicitly requests that exact action.
+
+## Job configuration
+
+Every job file defines all seven keys:
+
+- `SOURCE`
+- `DESTINATION`
+- `BACKUP_TYPE` — `0`, `1`, `2`, `3`, or `4`.
+- `IGNORE_EXISTING` — literal `true` or `false`.
+- `COMPRESSION_LEVEL` — `0`, `1`, `3`, `5`, `7`, or `9`; ignored by types 0–2.
+- `ENCRYPTION_PASSWORD` — required for types 3 and 4, and may be empty for types 0–2.
+- `UPLOAD_THREADS` — positive integer passed to `rclone --transfers`.
+
+Real job files and enabled symlinks are ignored by Git because job files can contain encryption passwords. Keep `jobs-available/sample.conf` free of secrets and do not enable it automatically.
+
+## Backup modes and existing-file behavior
+
+- Type 0 uses `rclone copy`; extra destination files remain.
+- Type 1 uses `rclone sync`; extra destination files are deleted.
+- Type 2 uses `rclone move`, followed by optional `rclone delete --min-age`.
+- Type 3 archives each immediate subfolder separately.
+- Type 4 archives the complete source with a minute-resolution date suffix.
+
+When `IGNORE_EXISTING=true`, destination transfers for types 0, 1, 2, and 4 receive `--ignore-existing`. Type 3 skips an exact existing `folder.7z` and protects its final move with the same flag. Its source-to-staging copy never receives `--ignore-existing`.
+
+When `IGNORE_EXISTING=false`, omit the flag and let normal rclone `--size-only` behavior apply. Type 1 remains destructive with respect to extra destination files.
 
 ## Conventions worth preserving
 
-- rclone is always invoked with `--size-only --ignore-checksum --no-check-certificate`. This is deliberate (size-only comparison, skip checksum, allow self-signed certs) — keep these flags when adding new rclone calls unless explicitly changing the behavior.
-- All rclone calls use `--transfers $UPLOAD_THREADS`.
-- Type 3's "skip if `.7z` already exists on remote" check is the only incremental-skip mechanism; other types re-upload unconditionally.
+- Every rclone transfer uses `--transfers "$UPLOAD_THREADS" --size-only --ignore-checksum --no-check-certificate --progress --stats-unit bytes`.
+- Build command arguments with Bash arrays and quote paths, passwords, recipient addresses, and thread counts.
+- Keep job variables isolated so missing keys cannot inherit obsolete values from `.env` or a preceding job.
+- Validate configuration before invoking backup commands.
+- Preserve exact-match type-3 archive checks; do not use substring matching for destination filenames.
+- Continue independent jobs after failure, attempt the email report last, and exit nonzero if any job or SMTP delivery failed.
+- Keep SMTP certificate verification enabled; do not add curl `--insecure`.
+- Treat `jobs-available` files as executable trusted configuration, not as untrusted data.
